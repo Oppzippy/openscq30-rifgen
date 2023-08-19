@@ -87,7 +87,8 @@ macro_rules! gen_structs {
                 /// the methods or variants with this type
                 pub extras: Vec<ItemInfo>,
                 /// annotate with #[derive(Clone)]
-                pub is_clone: bool
+                pub is_clone: bool,
+                pub is_partial_eq: bool,
             }
 
             impl $name {
@@ -123,8 +124,18 @@ macro_rules! gen_structs {
                         Delimiters::Parenthesis,
                         NewLineState::ShiftRight,
                     );
+                    let mut derives = String::new();
                     if self.is_clone {
-                        formatter.add_text_and_then_line(vec!["#[derive(Clone)]"],NewLineState::Current);
+                        derives += "Clone";
+                    }
+                    if self.is_partial_eq {
+                        if !derives.is_empty() {
+                            derives += ", ";
+                        }
+                        derives += "PartialEq";
+                    }
+                    if !derives.is_empty() {
+                        formatter.add_text_and_then_line(vec![&format!("#[derive({derives})]")],NewLineState::Current);
                     }
                     //Add the doc comment associated with this struct
                     add_doc!(self, formatter);
@@ -133,6 +144,15 @@ macro_rules! gen_structs {
                             Delimiters::Bracket,
                             NewLineState::ShiftRight,
                     );
+
+                    if self.is_partial_eq {
+                        formatter.add_text_and_then_line(
+                            vec![
+                                &format!("private fn {}::eq(&self, other: &{}) -> bool; alias rustEq;", self.name, self.name)
+                            ],
+                            NewLineState::Current,
+                        );
+                    }
 
                     if any_is_constructor {
                         formatter.add_text_and_colon(vec!["self_type ",&self.name]);

@@ -34,10 +34,13 @@ fn has_gen_access_methods_attr(item: &ItemStruct) -> bool {
         .map(|attr| attr.path.segments.iter())
         .flatten()
         .any(|seg| {
-            eprintln!("token {} container {}",seg.to_token_stream()
-                .to_string(),seg.to_token_stream()
-                .to_string()
-                .contains("generate_access_methods"));
+            eprintln!(
+                "token {} container {}",
+                seg.to_token_stream().to_string(),
+                seg.to_token_stream()
+                    .to_string()
+                    .contains("generate_access_methods")
+            );
             seg.to_token_stream()
                 .to_string()
                 .contains("generate_access_methods")
@@ -70,6 +73,31 @@ fn has_clone_derive_struct(item: &ItemStruct) -> bool {
     })
 }
 
+fn has_partial_eq_derive_struct(item: &ItemStruct) -> bool {
+    item.attrs.iter().any(|attr| {
+        let attr: String = attr.to_token_stream().to_string();
+        attr.starts_with("# [deriv") && {
+            //could be derive, derivable, derivative, etc
+            attr.find("PartialEq")
+                .and_then(|index| {
+                    Some((
+                        attr.get(index.saturating_sub(1)..index),
+                        attr.get(index + 9..index + 10),
+                    ))
+                })
+                .map(|(before, after)| {
+                    before
+                        .map(|e| !e.chars().next().unwrap().is_alphanumeric())
+                        .unwrap_or_default()
+                        && after
+                            .map(|e| !e.chars().next().unwrap().is_alphanumeric())
+                            .unwrap_or_default()
+                })
+                .unwrap_or_default()
+        }
+    })
+}
+
 macro_rules! has_gen_attr {
     ($expr:expr) => {
         has_gen_attr!($expr, false)
@@ -78,14 +106,12 @@ macro_rules! has_gen_attr {
         let mut is_attribute = false;
         let mut is_constructor = false;
         $expr.attrs.iter().any(|it| {
-            is_attribute = it
-                .path
-                .segments
-                .iter()
-                .any(|it| {
-                eprintln!("hsas atter {}",it.to_token_stream().to_string());
-                it.to_token_stream().to_string().contains("generate_interface")
-                });
+            is_attribute = it.path.segments.iter().any(|it| {
+                eprintln!("hsas atter {}", it.to_token_stream().to_string());
+                it.to_token_stream()
+                    .to_string()
+                    .contains("generate_interface")
+            });
             if is_attribute && $check_for_constructor {
                 is_constructor = it.tokens.to_string().contains("constructor");
             }
@@ -99,10 +125,11 @@ macro_rules! has_gen_attr {
 macro_rules! has_doc_gen_attr {
     ($expr:expr) => {
         $expr.attrs.iter().any(|it| {
-            it.path
-                .segments
-                .iter()
-                .any(|it| it.to_token_stream().to_string().contains("generate_interface_doc"))
+            it.path.segments.iter().any(|it| {
+                it.to_token_stream()
+                    .to_string()
+                    .contains("generate_interface_doc")
+            })
         })
     };
 }
@@ -449,6 +476,7 @@ impl<I: AsRef<Path>, S: AsRef<Path>> FileGenerator<I, S> {
                                         get_doc!(item),
                                         vec![],
                                         has_clone_derive_struct(item),
+                                        has_partial_eq_derive_struct(item),
                                     )),
                                 );
                             }
@@ -493,6 +521,7 @@ impl<I: AsRef<Path>, S: AsRef<Path>> FileGenerator<I, S> {
                                     get_doc!(val),
                                     variants,
                                     false,
+                                    false,
                                 )),
                             );
                         }
@@ -508,6 +537,7 @@ impl<I: AsRef<Path>, S: AsRef<Path>> FileGenerator<I, S> {
                             Types::Trait,
                             get_doc!(val),
                             Vec::with_capacity(val.items.len()),
+                            false,
                             false,
                         );
                         for item in &val.items {
@@ -601,6 +631,7 @@ impl<I: AsRef<Path>, S: AsRef<Path>> FileGenerator<I, S> {
                                 Types::Struct,
                                 vec![],
                                 vec![item_info],
+                                false,
                                 false,
                             );
                             map.insert(Rc::new(name.clone()), TypeHolder::Struct(data));
