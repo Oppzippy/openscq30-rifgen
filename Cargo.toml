@@ -1,3 +1,6 @@
+[workspace]
+members = ["gen_attributes", "attributes_utils"]
+
 [package]
 authors = ["Kofi Otuo <otuokofi@outlook.com>"]
 name = "rifgen"
